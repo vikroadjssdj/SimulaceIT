@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktivní simulace TPM</title>
+    <!-- Načtení Tailwind CSS z CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Načtení Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Vlastní styly a přepsání/doplnění Tailwind -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e; /* Tmavě modrofialové pozadí */
+            color: #e0e0e0; /* Světlá barva textu */
+        }
+        .neon-blue {
+            box-shadow: 0 0 5px #00aaff, 0 0 10px #00aaff, 0 0 15px #00aaff;
+            border-color: #00aaff;
+        }
+        .neon-green {
+            box-shadow: 0 0 5px #00ffaa, 0 0 10px #00ffaa, 0 0 15px #00ffaa;
+            border-color: #00ffaa;
+            color: #00ffaa; /* Změna: Přidána barva textu pro lepší efekt */
+        }
+        .neon-red {
+            box-shadow: 0 0 5px #ff0055, 0 0 10px #ff0055, 0 0 15px #ff0055;
+            border-color: #ff0055;
+            color: #ff0055; /* Změna: Přidána barva textu pro lepší efekt */
+        }
+        /* Definice vlastních tříd pomocí @apply (vyžaduje Tailwind) */
+        .btn {
+            @apply px-4 py-2 rounded-lg font-semibold transition-all duration-300 ease-in-out border-2 border-transparent;
+        }
+        .btn-primary {
+            @apply bg-blue-600 hover:bg-blue-700 text-white neon-blue;
+        }
+        .btn-success {
+            @apply bg-green-600 hover:bg-green-700 text-white neon-green; /* Odebrána barva textu odsud, řešeno v .neon-green */
+        }
+        .btn-danger {
+            @apply bg-red-600 hover:bg-red-700 text-white neon-red; /* Odebrána barva textu odsud, řešeno v .neon-red */
+        }
+        .btn-secondary {
+            @apply bg-gray-600 hover:bg-gray-700 text-white border-gray-500;
+        }
+        .vault {
+            @apply w-32 h-32 border-4 border-gray-400 rounded-lg flex items-center justify-center text-4xl transition-all duration-500 ease-in-out mx-auto my-4;
+            background-color: #333; /* Barva trezoru */
+        }
+        .vault-locked {
+            @apply border-blue-500 neon-blue;
+            background-color: #2a2a4a; /* Tmavší modrá pro zamčený trezor */
+        }
+        .vault-unlocked {
+             @apply border-green-500 neon-green;
+             /* Pozadí může zůstat světlejší nebo stejné jako původní */
+             background-color: #333;
+        }
+        .vault-broken {
+            @apply border-red-500 neon-red;
+            background-color: #4a2a2a; /* Tmavší červená pro rozbitý trezor */
+        }
+        .tab-content {
+            @apply hidden p-4 border border-gray-600 rounded-b-lg bg-gray-850; /* Lehce odlišné pozadí pro obsah tabu */
+        }
+        .tab-content.active {
+            @apply block;
+        }
+        .tab-button {
+            @apply px-4 py-2 font-semibold rounded-t-lg cursor-pointer transition-colors duration-300;
+        }
+        .tab-button.active {
+            @apply bg-gray-700 text-white; /* Aktivní tab */
+        }
+        .tab-button:not(.active) {
+            @apply bg-gray-800 text-gray-400 hover:bg-gray-700; /* Neaktivní tab */
+        }
+        /* Simple LED animation */
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+        .led {
+            @apply w-3 h-3 rounded-full inline-block ml-2 align-middle; /* Použití align-middle pro lepší zarovnání s textem */
+        }
+        .led-off {
+            @apply bg-gray-500;
+        }
+        .led-blue {
+            @apply bg-blue-500 animate-pulse; /* Použití Tailwind animace */
+            box-shadow: 0 0 3px #00aaff;
+        }
+        .led-green {
+            @apply bg-green-500;
+            box-shadow: 0 0 3px #00ffaa;
+        }
+        .led-red {
+            @apply bg-red-500;
+            box-shadow: 0 0 3px #ff0055;
+        }
+        /* Přidání základního stylu pro input pole pro konzistenci */
+        input[type="text"] {
+            background-color: #2a2a4a; /* Tmavší pozadí pro input */
+            border-color: #4a4a6a; /* Tmavší border */
+        }
+        input[type="text"]:focus {
+             border-color: #00aaff; /* Modrý border při focusu */
+             box-shadow: 0 0 5px #00aaff; /* Lehký neonový efekt při focusu */
+        }
+    </style>
+</head>
+<body class="p-6">
+
+    <div class="max-w-2xl mx-auto bg-gray-900 p-6 rounded-xl shadow-lg border border-gray-700">
+
+        <h1 class="text-2xl font-bold text-center mb-1 text-blue-400">Interaktivní simulace TPM</h1>
+        <p class="text-sm text-center text-gray-500 mb-2">Vytvořeno Viktorem Belančinem pro prezentaci z Hardwaru 1. A IT.</p>
+        <p class="text-center text-gray-400 mb-6">Vyzkoušej si, jak TPM čip chrání tvoje data.</p>
+
+        <!-- Záložky -->
+        <div class="mb-4 border-b border-gray-700">
+            <nav class="flex">
+                <button id="tab-sim" class="tab-button active" onclick="showTab('sim')">Simulace</button>
+                <button id="tab-about" class="tab-button" onclick="showTab('about')">O TPM</button>
+            </nav>
+        </div>
+
+        <!-- Obsah záložky Simulace -->
+        <div id="content-sim" class="tab-content active">
+            <div id="mode-selection" class="text-center mb-6">
+                <p class="mb-4">Zvolte režim simulace:</p>
+                <button id="btn-with-tpm" class="btn btn-primary mr-4" onclick="selectMode('with-tpm')">✅ Spustit s TPM</button>
+                <button id="btn-without-tpm" class="btn btn-danger" onclick="selectMode('without-tpm')">❌ Spustit bez TPM</button>
+            </div>
+
+            <div id="simulation-area" class="hidden">
+                <h2 id="mode-title" class="text-xl font-semibold mb-4 text-center"></h2>
+
+                <!-- Trezor a stav -->
+                <div id="vault" class="vault">
+                    <span id="vault-icon">❔</span> <!-- Výchozí ikona -->
+                </div>
+                <div class="text-center mb-4">Stav: <span id="status-led" class="led led-off"></span><span id="status-text" class="ml-1">Připraven</span></div>
+
+                <!-- Vstup pro zprávu -->
+                <div class="mb-4">
+                    <label for="secret-message" class="block mb-2 text-sm font-medium text-gray-300">Zadej tajnou zprávu:</label>
+                    <input type="text" id="secret-message" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 placeholder-gray-400" placeholder="např. PIN: 5482">
+                </div>
+
+                <!-- Hlavní tlačítka akcí -->
+                <div class="flex justify-center space-x-4 mb-4">
+                    <button id="btn-secure" class="btn btn-primary" onclick="secureMessage()">Zabezpečit zprávu</button>
+                    <button id="btn-unlock" class="btn btn-secondary" onclick="prepareUnlock()" disabled>Odemknout zprávu</button>
+                </div>
+
+                <!-- Sekce pro odemčení (zobrazeno dle potřeby) -->
+                <div id="unlock-section" class="hidden mb-4">
+                     <label for="tpm-id-input" class="block mb-2 text-sm font-medium text-gray-300">Zadej TPM identifikátor:</label>
+                    <div class="flex space-x-2">
+                       <input type="text" id="tpm-id-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 placeholder-gray-400" placeholder="TPM-XXXX">
+                       <button id="btn-confirm-unlock" class="btn btn-success" onclick="unlockMessage()">Potvrdit</button>
+                    </div>
+                </div>
+
+                <!-- Tlačítko pro simulaci útoku -->
+                 <div class="text-center mb-4">
+                     <button id="btn-attack" class="btn btn-danger" onclick="simulateAttack()" disabled>Simulovat útok</button>
+                </div>
+
+                <!-- Výstupní oblast -->
+                <div id="output-area" class="bg-gray-800 p-4 rounded-lg border border-gray-700 min-h-[100px]">
+                    <h3 class="font-semibold mb-2 text-gray-400">Výstup:</h3>
+                    <pre id="output-content" class="text-sm whitespace-pre-wrap"></pre>
+                </div>
+
+                <!-- Tlačítko pro reset -->
+                <div class="text-center mt-6">
+                    <button id="btn-reset" class="btn btn-secondary" onclick="resetSimulation()">Resetovat simulaci</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Obsah záložky O TPM -->
+        <div id="content-about" class="tab-content">
+            <h2 class="text-xl font-semibold mb-4 text-blue-400">Co je TPM (Trusted Platform Module)?</h2>
+            <p class="mb-3">TPM je specializovaný bezpečnostní čip, který je fyzicky integrován do základní desky počítače nebo notebooku.</p>
+            <p class="mb-3">Jeho hlavním úkolem je bezpečně generovat, ukládat a spravovat kryptografické klíče. Tyto klíče se používají pro různé bezpečnostní funkce:</p>
+            <ul class="list-disc list-inside mb-3 space-y-1 text-gray-300">
+                <li><strong>Bezpečné šifrování disku:</strong> Například pomocí BitLockeru ve Windows. Klíč k dešifrování disku je vázán na TPM.</li>
+                <li><strong>Ověření integrity systému:</strong> TPM může zkontrolovat, zda systém nebyl při startu pozměněn (např. malwarem).</li>
+                <li><strong>Bezpečné ukládání hesel a certifikátů:</strong> Chrání citlivé údaje před softwarovými útoky.</li>
+            </ul>
+            <h3 class="font-semibold mb-2 text-gray-400">Proč je lepší než jen heslo?</h3>
+            <p class="mb-3">Klíče uložené v TPM jsou vázány na konkrétní hardware. Je velmi obtížné (prakticky nemožné běžnými prostředky) je z čipu extrahovat nebo zkopírovat. I když útočník získá fyzický přístup k disku, bez správného TPM (nebo obnovovacího klíče) data nerozšifruje.</p>
+            <p>Heslo samo o sobě může být prolomeno (např. hádáním, slovníkovým útokem) nebo odposlechnuto. TPM přidává hardwarovou vrstvu zabezpečení, která je mnohem odolnější.</p>
+        </div>
+
+    </div>
+
+    <!-- JavaScript pro interaktivitu -->
+    <script>
+        // --- Globální proměnné stavu ---
+        let currentMode = null; // 'with-tpm' nebo 'without-tpm'
+        let secretMessageStore = null; // Ukládá původní zprávu
+        let encryptedData = null; // Simuluje šifrovaná data (v režimu TPM je to jen placeholder)
+        let tpmKey = null; // Simulovaný klíč generovaný TPM
+        let tpmId = null; // Simulovaný identifikátor TPM zobrazený uživateli
+        let isLocked = false; // Sleduje, zda je trezor zamčený/data zabezpečená
+
+        // --- Odkazy na DOM prvky ---
+        const modeSelectionDiv = document.getElementById('mode-selection');
+        const simulationAreaDiv = document.getElementById('simulation-area');
+        const modeTitle = document.getElementById('mode-title');
+        const secretMessageInput = document.getElementById('secret-message');
+        const outputContent = document.getElementById('output-content');
+        const btnSecure = document.getElementById('btn-secure');
+        const btnUnlock = document.getElementById('btn-unlock');
+        const btnAttack = document.getElementById('btn-attack');
+        const btnReset = document.getElementById('btn-reset');
+        const unlockSection = document.getElementById('unlock-section');
+        const tpmIdInput = document.getElementById('tpm-id-input');
+        const vaultElement = document.getElementById('vault');
+        const vaultIcon = document.getElementById('vault-icon');
+        const statusText = document.getElementById('status-text');
+        const statusLed = document.getElementById('status-led');
+        const tabSim = document.getElementById('tab-sim');
+        const tabAbout = document.getElementById('tab-about');
+        const contentSim = document.getElementById('content-sim');
+        const contentAbout = document.getElementById('content-about');
+
+        // --- Funkce pro aktualizaci UI ---
+        function updateStatus(text, ledColor = 'off') {
+            statusText.textContent = text;
+            statusLed.className = `led led-${ledColor}`; // Dynamické nastavení třídy LED
+        }
+
+        function updateVault(state) { // 'initial', 'locked', 'unlocked', 'broken'
+            // Reset tříd
+            vaultElement.classList.remove('vault-locked', 'vault-unlocked', 'vault-broken', 'neon-blue', 'neon-green', 'neon-red');
+            switch (state) {
+                case 'locked':
+                    vaultElement.classList.add('vault-locked', 'neon-blue');
+                    vaultIcon.textContent = '🔒';
+                    updateStatus('Zabezpečeno', 'blue');
+                    break;
+                case 'unlocked':
+                    vaultElement.classList.add('vault-unlocked', 'neon-green');
+                    vaultIcon.textContent = '🔓';
+                     updateStatus('Odemčeno', 'green');
+                    break;
+                case 'broken':
+                     vaultElement.classList.add('vault-broken', 'neon-red');
+                    vaultIcon.textContent = '💥';
+                    updateStatus('Chyba/Narušeno', 'red');
+                    break;
+                case 'initial':
+                default:
+                     vaultIcon.textContent = '❔'; // Výchozí ikona
+                     updateStatus('Připraven', 'off');
+                     // Můžeme zde přidat i výchozí třídu, pokud je potřeba, např. neutrální šedou
+                     vaultElement.classList.add('border-gray-400'); // Zajistí, že má vždy nějaký border
+                    break;
+            }
+        }
+
+        function displayOutput(message, type = 'info') { // 'info', 'success', 'error', 'key'
+            let colorClass = 'text-gray-300'; // Výchozí barva
+            if (type === 'success') colorClass = 'text-green-400 neon-green';
+            if (type === 'error') colorClass = 'text-red-400 neon-red';
+            if (type === 'key') colorClass = 'text-blue-400'; // Pro klíče/ID
+
+            // Sanitizace pro zobrazení HTML tagů jako textu, pokud by byly ve zprávě
+            const sanitizedMessage = message.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            // Použití innerHTML pro aplikaci tříd barev
+            outputContent.innerHTML = `<span class="${colorClass}">${sanitizedMessage}</span>`;
+        }
+
+        // --- Logika simulace ---
+
+        function selectMode(mode) {
+            currentMode = mode;
+            modeSelectionDiv.classList.add('hidden'); // Skrýt výběr režimu
+            simulationAreaDiv.classList.remove('hidden'); // Zobrazit oblast simulace
+            resetSimulationState(); // Resetovat stav pro nový běh
+
+            if (mode === 'with-tpm') {
+                modeTitle.textContent = 'Režim: S TPM ✅';
+                modeTitle.className = 'text-xl font-semibold mb-4 text-center text-green-400'; // Zelený nadpis
+                 displayOutput('TPM je aktivní. Připraven k zabezpečení zprávy.');
+            } else {
+                modeTitle.textContent = 'Režim: Bez TPM ❌';
+                modeTitle.className = 'text-xl font-semibold mb-4 text-center text-red-400'; // Červený nadpis
+                displayOutput('TPM není k dispozici. Data nebudou hardwarově chráněna.');
+            }
+        }
+
+        // Pomocná funkce pro generování pseudo-náhodného hex řetězce
+        function generatePseudoHex(length) {
+            let result = '';
+            const characters = 'ABCDEF0123456789';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+
+        function secureMessage() {
+            const message = secretMessageInput.value.trim();
+            if (!message) {
+                displayOutput('Chyba: Zadejte prosím tajnou zprávu.', 'error');
+                return;
+            }
+
+            secretMessageStore = message;
+            isLocked = true;
+            btnSecure.disabled = true;      // Zamknout tlačítko Zabezpečit
+            btnUnlock.disabled = false;     // Odemknout tlačítko Odemknout
+            btnAttack.disabled = false;     // Povolit tlačítko Útok
+            secretMessageInput.disabled = true; // Zamknout vstupní pole
+            unlockSection.classList.add('hidden'); // Skrýt sekci pro odemčení
+            tpmIdInput.value = '';          // Vyčistit pole pro TPM ID pro jistotu
+
+            if (currentMode === 'with-tpm') {
+                // Simulace TPM: Generování klíče a ID
+                tpmKey = `KEY-${generatePseudoHex(16)}`; // Vygenerovat delší "klíč"
+                tpmId = `TPM-${generatePseudoHex(4)}`;   // Vygenerovat kratší "ID"
+                encryptedData = `[Zašifrováno pomocí ${tpmKey}]`; // Jen symbolická reprezentace
+
+                updateVault('locked');
+                displayOutput(`Zpráva zabezpečena pomocí TPM.\nTPM vygeneroval klíč: (skrytý)\nTPM Identifikátor: ${tpmId}\n\nPro odemčení zadejte správný TPM Identifikátor.`, 'key');
+
+            } else { // Bez TPM
+                // Bez TPM data nejsou skutečně chráněna
+                encryptedData = `(Pseudo-šifrováno/Nezabezpečeno): ${message}`;
+                tpmKey = null;
+                tpmId = null;
+
+                updateVault('broken'); // Indikuje nezabezpečený/snadno narušitelný stav
+                displayOutput('Varování: Bez TPM nelze data bezpečně zašifrovat.\nData jsou uložena nezabezpečeně nebo jen slabě chráněna.', 'error');
+            }
+        }
+
+        function prepareUnlock() {
+            if (!isLocked) {
+                 displayOutput('Není co odemykat. Nejprve zabezpečte zprávu.', 'error');
+                return;
+            }
+
+            if (currentMode === 'with-tpm') {
+                // V režimu s TPM zobrazit pole pro zadání ID
+                unlockSection.classList.remove('hidden');
+                displayOutput(`Připraven k odemčení. Zadejte TPM Identifikátor (např. ${tpmId}) pro ověření.`, 'info');
+                 tpmIdInput.focus(); // Automaticky zaměřit kurzor na vstupní pole
+            } else {
+                // V režimu bez TPM rovnou "odemknout" (protože není co ověřovat)
+                unlockMessage();
+            }
+        }
+
+        function unlockMessage() {
+            if (!isLocked) return; // Pojistka
+
+            if (currentMode === 'with-tpm') {
+                const enteredId = tpmIdInput.value.trim();
+                if (enteredId.toUpperCase() === tpmId.toUpperCase()) { // Porovnání bez ohledu na velikost písmen
+                    // Správné ID
+                    updateVault('unlocked');
+                    displayOutput(`Přístup povolen! TPM klíč ověřen.\nPůvodní zpráva:\n${secretMessageStore}`, 'success');
+                    isLocked = false;
+                    btnUnlock.disabled = true; // Zamknout Odemknout
+                    btnAttack.disabled = true; // Zamknout Útok
+                    unlockSection.classList.add('hidden'); // Skrýt sekci odemčení
+                    btnSecure.disabled = false; // Povolit Zabezpečit
+                    secretMessageInput.disabled = false; // Povolit vstup
+                } else {
+                    // Nesprávné ID
+                     updateVault('locked'); // Zůstává zamčeno
+                    displayOutput('Chyba: Zadaný TPM Identifikátor neodpovídá. Přístup zamítnut.', 'error');
+                    tpmIdInput.focus(); // Udržet focus na poli pro opravu
+                    tpmIdInput.select(); // Označit text pro snadné přepsání
+                }
+            } else { // Bez TPM
+                // Není co ověřovat, rovnou zobrazit zprávu (s varováním)
+                updateVault('unlocked'); // I když je to "rozbitý" zámek
+                displayOutput(`Data "odemčena" (nebyla řádně zabezpečena).\nPůvodní zpráva (potenciálně kompromitovaná):\n${secretMessageStore}`, 'error'); // Zobrazit jako chybu/varování
+                isLocked = false;
+                btnUnlock.disabled = true;
+                btnAttack.disabled = true;
+                btnSecure.disabled = false;
+                secretMessageInput.disabled = false;
+            }
+        }
+
+        function simulateAttack() {
+             if (!isLocked) {
+                 displayOutput('Nelze útočit na nezabezpečený/odemčený trezor.', 'info');
+                 return;
+             }
+
+            if (currentMode === 'with-tpm') {
+                 updateVault('locked'); // Zůstává zamčeno
+                displayOutput('Pokus o útok detekován!\nTPM chrání klíč. Přístup k datům bez správného TPM ID selhal.', 'error');
+                // TPM by mohl implementovat i proti-útokové mechanismy (např. zamčení na čas), ale to zde nesimulujeme.
+            } else { // Bez TPM
+                updateVault('broken'); // Zámek je rozbitý/nefunkční
+                displayOutput(`Pokus o útok detekován!\nBez ochrany TPM byla data snadno přístupná.\nKompromitovaná zpráva: ${secretMessageStore}`, 'error');
+                // V tomto případě útočník získal data.
+            }
+        }
+
+
+        function resetSimulationState() {
+            // Resetovat proměnné
+            secretMessageStore = null;
+            encryptedData = null;
+            tpmKey = null;
+            tpmId = null;
+            isLocked = false;
+
+            // Resetovat UI prvky
+            secretMessageInput.value = '';
+            secretMessageInput.disabled = false;
+            tpmIdInput.value = '';
+            outputContent.innerHTML = ''; // Vyčistit výstup
+            unlockSection.classList.add('hidden'); // Skrýt sekci odemčení
+            btnSecure.disabled = false;     // Povolit Zabezpečit
+            btnUnlock.disabled = true;      // Zamknout Odemknout
+            btnAttack.disabled = true;      // Zamknout Útok
+
+            updateVault('initial'); // Resetovat vizuál trezoru
+
+            // Nastavit výchozí zprávu ve výstupu podle aktuálního režimu (pokud je zvolen)
+             if (currentMode === 'with-tpm') {
+                 displayOutput('TPM je aktivní. Připraven k zabezpečení zprávy.');
+             } else if (currentMode === 'without-tpm') {
+                 displayOutput('TPM není k dispozici. Data nebudou hardwarově chráněna.');
+             } else {
+                 // Pokud ještě není zvolen režim (např. po úplném resetu)
+                 displayOutput('Vyberte režim pro spuštění simulace.');
+             }
+        }
+
+        // Funkce pro úplný reset simulace (návrat k výběru režimu)
+        function resetSimulation() {
+            currentMode = null; // Zrušit výběr režimu
+            simulationAreaDiv.classList.add('hidden'); // Skrýt oblast simulace
+            modeSelectionDiv.classList.remove('hidden'); // Zobrazit výběr režimu
+            resetSimulationState(); // Resetovat stav simulace
+            updateStatus('Připraven', 'off'); // Resetovat globální stav na LEDce
+            showTab('sim'); // Ujistit se, že je vidět záložka simulace
+        }
+
+        // --- Přepínání záložek ---
+        function showTab(tabId) {
+            // Skrýt veškerý obsah
+            contentSim.classList.remove('active');
+            contentAbout.classList.remove('active');
+            // Deaktivovat všechna tlačítka záložek (styl)
+            tabSim.classList.remove('active', 'bg-gray-700', 'text-white');
+            tabSim.classList.add('bg-gray-800', 'text-gray-400', 'hover:bg-gray-700');
+            tabAbout.classList.remove('active', 'bg-gray-700', 'text-white');
+            tabAbout.classList.add('bg-gray-800', 'text-gray-400', 'hover:bg-gray-700');
+
+            // Zobrazit vybraný obsah a aktivovat tlačítko
+            if (tabId === 'sim') {
+                contentSim.classList.add('active');
+                tabSim.classList.add('active', 'bg-gray-700', 'text-white');
+                tabSim.classList.remove('bg-gray-800', 'text-gray-400', 'hover:bg-gray-700');
+            } else { // 'about'
+                contentAbout.classList.add('active');
+                tabAbout.classList.add('active', 'bg-gray-700', 'text-white');
+                 tabAbout.classList.remove('bg-gray-800', 'text-gray-400', 'hover:bg-gray-700');
+            }
+        }
+
+        // --- Počáteční nastavení při načtení stránky ---
+        simulationAreaDiv.classList.add('hidden'); // Skrýt simulaci, dokud není vybrán režim
+        updateVault('initial'); // Nastavit výchozí stav trezoru
+
+    </script>
+
+</body>
+</html>
